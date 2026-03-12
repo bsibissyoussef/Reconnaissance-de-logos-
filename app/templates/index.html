@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logo Recognition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0a0a14;
+            color: white;
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #6c63ff, #48cfad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 5px;
+        }
+        .subtitle { text-align: center; color: #555; margin-bottom: 40px; }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: #13131f;
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid #1e1e30;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #6c63ff;
+        }
+        .param-group { margin-bottom: 20px; }
+        .param-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        .param-value { color: #48cfad; font-weight: bold; }
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #1e1e30;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            background: #6c63ff;
+            cursor: pointer;
+        }
+        .model-switch {
+            display: flex;
+            background: #0a0a14;
+            border-radius: 12px;
+            padding: 5px;
+            margin-bottom: 25px;
+        }
+        .model-btn {
+            flex: 1; padding: 12px;
+            border: none; border-radius: 10px;
+            background: transparent; color: #555;
+            cursor: pointer; font-size: 1rem; transition: 0.3s;
+        }
+        .model-btn.active { background: #6c63ff; color: white; }
+        .train-btn {
+            width: 100%; padding: 15px;
+            background: linear-gradient(90deg, #6c63ff, #48cfad);
+            border: none; border-radius: 12px;
+            color: white; font-size: 1.1rem;
+            cursor: pointer; font-weight: bold; transition: 0.3s;
+        }
+        .train-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .train-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .progress-bar-bg {
+            background: #0a0a14; border-radius: 10px;
+            height: 12px; margin: 15px 0; overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; border-radius: 10px;
+            background: linear-gradient(90deg, #6c63ff, #48cfad);
+            transition: width 0.5s; width: 0%;
+        }
+        .logs-box {
+            background: #0a0a14; border-radius: 10px;
+            padding: 15px; height: 160px; overflow-y: auto;
+            font-family: monospace; font-size: 0.8rem; color: #48cfad;
+        }
+        .log-line { margin-bottom: 4px; }
+
+        /* Upload */
+        .upload-area {
+            border: 2px dashed #1e1e30; border-radius: 15px;
+            padding: 20px; text-align: center; cursor: pointer;
+            transition: 0.3s; margin-bottom: 15px;
+        }
+        .upload-area:hover { border-color: #6c63ff; background: rgba(108,99,255,0.05); }
+        .upload-area img { max-width: 100%; max-height: 180px; border-radius: 10px; display: none; }
+        .upload-icon { font-size: 2rem; margin-bottom: 5px; }
+        .upload-text { color: #555; font-size: 0.85rem; }
+        .predict-btn {
+            width: 100%; padding: 13px;
+            background: linear-gradient(90deg, #6c63ff, #48cfad);
+            border: none; border-radius: 12px;
+            color: white; font-size: 1rem; cursor: pointer; transition: 0.3s;
+        }
+        .predict-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Comparaison */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .model-result {
+            background: #0a0a14;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #1e1e30;
+        }
+        .model-result.winner { border-color: #48cfad; }
+        .model-tag {
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .tag-knn { background: rgba(108,99,255,0.2); color: #6c63ff; }
+        .tag-svm { background: rgba(72,207,173,0.2); color: #48cfad; }
+        .model-pred {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .knn-pred { color: #6c63ff; }
+        .svm-pred { color: #48cfad; }
+        .model-conf { font-size: 0.8rem; color: #555; margin-bottom: 12px; }
+        .winner-badge {
+            font-size: 0.7rem;
+            color: #48cfad;
+            display: none;
+            margin-bottom: 8px;
+        }
+        .model-result.winner .winner-badge { display: block; }
+
+        /* Probas */
+        .probas-title { font-size: 0.75rem; color: #aaa; margin-bottom: 8px; }
+        .proba-row {
+            display: flex; align-items: center;
+            gap: 6px; margin-bottom: 5px;
+        }
+        .proba-label { width: 90px; font-size: 0.7rem; color: #aaa; text-align: right; flex-shrink: 0; }
+        .proba-bar-bg { flex: 1; background: #1e1e30; border-radius: 4px; height: 6px; overflow: hidden; }
+        .proba-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+        .fill-knn { background: #6c63ff; }
+        .fill-svm { background: #48cfad; }
+        .fill-top { background: linear-gradient(90deg, #f7b731, #fc5c65); }
+        .proba-pct { width: 38px; font-size: 0.7rem; color: #aaa; text-align: right; flex-shrink: 0; }
+
+        /* Stats modèles */
+        .model-stats {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            flex: 1; background: #0a0a14;
+            border-radius: 12px; padding: 15px;
+            text-align: center; border: 1px solid #1e1e30;
+        }
+        .stat-card.ready { border-color: #48cfad33; }
+        .stat-value { font-size: 1.5rem; font-weight: bold; }
+        .stat-value.knn { color: #6c63ff; }
+        .stat-value.svm { color: #48cfad; }
+        .stat-label { font-size: 0.75rem; color: #555; margin-top: 3px; }
+        .stat-status { font-size: 0.7rem; margin-top: 5px; }
+        .ready { color: #48cfad; }
+        .not-ready { color: #fc5c65; }
+
+        .full-width { grid-column: 1 / -1; }
+        .hidden { display: none; }
+        .tabs {
+            display: flex; gap: 10px; margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 8px 20px; border: 1px solid #1e1e30;
+            border-radius: 20px; background: transparent;
+            color: #555; cursor: pointer; transition: 0.3s; font-size: 0.85rem;
+        }
+        .tab-btn.active { background: #6c63ff; color: white; border-color: #6c63ff; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <h1>Logo Recognition</h1>
+    <p class="subtitle">SIFT + Bag of Words + KNN / SVM — Logo-2K+</p>
+
+    <div class="container">
+
+        <!-- ── CONFIGURATION ── -->
+        <div class="card">
+            <div class="card-title">⚙️ Configuration & Entraînement</div>
+
+            <div class="model-stats" id="modelStats">
+                <div class="stat-card" id="knnStatCard">
+                    <div class="stat-value knn" id="knnAcc">—</div>
+                    <div class="stat-label">KNN Accuracy</div>
+                    <div class="stat-status" id="knnStatus">...</div>
+                </div>
+                <div class="stat-card" id="svmStatCard">
+                    <div class="stat-value svm" id="svmAcc">—</div>
+                    <div class="stat-label">SVM Accuracy</div>
+                    <div class="stat-status" id="svmStatus">...</div>
+                </div>
+            </div>
+
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Images par classe</span>
+                    <span class="param-value" id="mpcVal">50</span>
+                </div>
+                <input type="range" id="mpcSlider" min="10" max="500" step="10" value="50"
+                    oninput="document.getElementById('mpcVal').textContent = this.value">
+            </div>
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Visual Words (K)</span>
+                    <span class="param-value" id="kVal">500</span>
+                </div>
+                <input type="range" id="kSlider" min="100" max="3000" step="100" value="500"
+                    oninput="document.getElementById('kVal').textContent = this.value">
+            </div>
+
+            <div class="param-label" style="margin-bottom:10px"><span>Modèle à entraîner</span></div>
+            <div class="model-switch">
+                <button class="model-btn active" id="btnKnn" onclick="selectModel('knn')">🤖 KNN</button>
+                <button class="model-btn" id="btnSvm" onclick="selectModel('svm')">⚡ SVM</button>
+            </div>
+            <button class="train-btn" id="trainBtn" onclick="startTraining()">
+                🚀 Lancer l'entraînement
+            </button>
+        </div>
+
+        <!-- ── PROGRESSION ── -->
+        <div class="card">
+            <div class="card-title">📊 Progression</div>
+            <div class="param-label">
+                <span id="progressLabel">En attente...</span>
+                <span class="param-value" id="progressPct">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="logs-box" id="logsBox">
+                <div class="log-line" style="color:#333">En attente du lancement...</div>
+            </div>
+        </div>
+
+        <!-- ── TEST IMAGE ── -->
+        <div class="card full-width">
+            <div class="card-title">🔍 Tester une image — Comparaison KNN vs SVM</div>
+            <div style="display:grid; grid-template-columns: 300px 1fr; gap: 20px;">
+
+                <!-- Upload -->
+                <div>
+                    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon" id="uploadIcon">📁</div>
+                        <div class="upload-text" id="uploadText">Clique pour importer</div>
+                        <img id="preview" src="" alt="preview">
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="previewImage(event)">
+                    <button class="predict-btn" id="predictBtn" onclick="predict()" disabled>
+                        Analyser & Comparer
+                    </button>
+                </div>
+
+                <!-- Comparaison -->
+                <div>
+                    <div class="compare-grid" id="compareGrid" style="display:none">
+
+                        <!-- KNN -->
+                        <div class="model-result" id="knnResult">
+                            <span class="model-tag tag-knn">🤖 KNN</span>
+                            <div class="winner-badge">🏆 Plus confiant</div>
+                            <div class="model-pred knn-pred" id="knnPred">—</div>
+                            <div class="model-conf" id="knnConf">—</div>
+                            <div class="probas-title">Probabilités :</div>
+                            <div id="knnProbas"></div>
+                        </div>
+
+                        <!-- SVM -->
+                        <div class="model-result" id="svmResult">
+                            <span class="model-tag tag-svm">⚡ SVM</span>
+                            <div class="winner-badge">🏆 Plus confiant</div>
+                            <div class="model-pred svm-pred" id="svmPred">—</div>
+                            <div class="model-conf" id="svmConf">—</div>
+                            <div class="probas-title">Probabilités :</div>
+                            <div id="svmProbas"></div>
+                        </div>
+
+                    </div>
+                    <div id="noModelMsg" style="color:#555; font-size:0.9rem; margin-top:20px">
+                        Importe une image pour comparer les deux modèles !
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── GRAPHIQUES ── -->
+        <div class="card full-width hidden" id="chartsCard">
+            <div class="card-title">📈 Analyse des modèles</div>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('f1')">F1-score</button>
+                <button class="tab-btn" onclick="switchTab('cmknn')">Matrice KNN</button>
+                <button class="tab-btn" onclick="switchTab('cmsvm')">Matrice SVM</button>
+            </div>
+            <div class="tab-content active" id="tab-f1">
+                <canvas id="f1Chart"></canvas>
+            </div>
+            <div class="tab-content" id="tab-cmknn">
+                <canvas id="cmKnnChart"></canvas>
+            </div>
+            <div class="tab-content" id="tab-cmsvm">
+                <canvas id="cmSvmChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let selectedModel = 'knn';
+        let pollingInterval = null;
+        let f1ChartInst = null;
+        let cmKnnInst = null;
+        let cmSvmInst = null;
+
+        const CLASS_NAMES = [
+            'Accessories','Clothes','Cosmetic','Electronic','Food',
+            'Institution','Leisure','Medical','Necessities','Transportation'
+        ];
+
+        // Charger le statut au démarrage
+        window.onload = async () => {
+            const res = await fetch('/status');
+            const data = await res.json();
+            updateModelStats(data);
+            if (data.knn_ready || data.svm_ready) {
+                document.getElementById('predictBtn').disabled = false;
+                document.getElementById('noModelMsg').textContent = 'Importe une image pour comparer !';
+            }
+        };
+
+        function updateModelStats(data) {
+            if (data.knn_ready) {
+                document.getElementById('knnAcc').textContent = data.accuracy_knn + '%';
+                document.getElementById('knnStatus').innerHTML = '<span class="ready">✓ Prêt</span>';
+                document.getElementById('knnStatCard').classList.add('ready');
+            } else {
+                document.getElementById('knnStatus').innerHTML = '<span class="not-ready">✗ Non entraîné</span>';
+            }
+            if (data.svm_ready) {
+                document.getElementById('svmAcc').textContent = data.accuracy_svm + '%';
+                document.getElementById('svmStatus').innerHTML = '<span class="ready">✓ Prêt</span>';
+                document.getElementById('svmStatCard').classList.add('ready');
+            } else {
+                document.getElementById('svmStatus').innerHTML = '<span class="not-ready">✗ Non entraîné</span>';
+            }
+        }
+
+        function selectModel(model) {
+            selectedModel = model;
+            document.getElementById('btnKnn').classList.toggle('active', model === 'knn');
+            document.getElementById('btnSvm').classList.toggle('active', model === 'svm');
+        }
+
+        async function startTraining() {
+            const maxPerClass = parseInt(document.getElementById('mpcSlider').value);
+            const K = parseInt(document.getElementById('kSlider').value);
+
+            document.getElementById('trainBtn').disabled = true;
+            document.getElementById('logsBox').innerHTML = '';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressPct').textContent = '0%';
+            document.getElementById('progressLabel').textContent = 'Entraînement en cours...';
+
+            await fetch('/train', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ max_per_class: maxPerClass, K: K, model_type: selectedModel })
+            });
+
+            pollingInterval = setInterval(pollProgress, 1000);
+        }
+
+        async function pollProgress() {
+            const res = await fetch('/progress');
+            const data = await res.json();
+
+            document.getElementById('progressFill').style.width = data.progress + '%';
+            document.getElementById('progressPct').textContent = data.progress + '%';
+
+            const logsBox = document.getElementById('logsBox');
+            logsBox.innerHTML = data.logs.map(l => `<div class="log-line">▶ ${l}</div>`).join('');
+            logsBox.scrollTop = logsBox.scrollHeight;
+
+            if (data.done) {
+                clearInterval(pollingInterval);
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('progressLabel').textContent = 'Entraînement terminé !';
+                document.getElementById('predictBtn').disabled = false;
+
+                // Refresh status
+                const status = await (await fetch('/status')).json();
+                updateModelStats(status);
+
+                // Afficher graphiques si dispo
+                if (data.f1_knn || data.f1_svm) {
+                    showCharts(data);
+                }
+            }
+
+            if (data.error) {
+                clearInterval(pollingInterval);
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('progressLabel').textContent = 'Erreur !';
+                alert('Erreur : ' + data.error);
+            }
+        }
+
+        function showCharts(data) {
+            document.getElementById('chartsCard').classList.remove('hidden');
+
+            const f1Knn = data.f1_knn || [];
+            const f1Svm = data.f1_svm || [];
+
+            if (f1ChartInst) f1ChartInst.destroy();
+            const datasets = [];
+            if (f1Knn.length) datasets.push({
+                label: 'KNN',
+                data: f1Knn.map(f => Math.round(f * 100) / 100),
+                backgroundColor: 'rgba(108,99,255,0.7)',
+                borderRadius: 6
+            });
+            if (f1Svm.length) datasets.push({
+                label: 'SVM',
+                data: f1Svm.map(f => Math.round(f * 100) / 100),
+                backgroundColor: 'rgba(72,207,173,0.7)',
+                borderRadius: 6
+            });
+
+            f1ChartInst = new Chart(document.getElementById('f1Chart'), {
+                type: 'bar',
+                data: { labels: CLASS_NAMES, datasets },
+                options: {
+                    plugins: { legend: { labels: { color: '#aaa' } } },
+                    scales: {
+                        y: { min: 0, max: 1, ticks: { color: '#555' }, grid: { color: '#1e1e30' } },
+                        x: { ticks: { color: '#555', maxRotation: 45 }, grid: { display: false } }
+                    }
+                }
+            });
+
+            if (data.cm_knn) buildCmChart('cmKnnChart', data.cm_knn, cmKnnInst, inst => cmKnnInst = inst);
+            if (data.cm_svm) buildCmChart('cmSvmChart', data.cm_svm, cmSvmInst, inst => cmSvmInst = inst);
+        }
+
+        function buildCmChart(canvasId, cm, oldInst, setter) {
+            if (oldInst) oldInst.destroy();
+            const maxVal = Math.max(...cm.flat());
+            const inst = new Chart(document.getElementById(canvasId), {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        data: cm.flatMap((row, i) => row.map((v, j) => ({ x: j, y: i, r: v }))),
+                        backgroundColor: cm.flatMap((row, i) =>
+                            row.map((v, j) => i === j
+                                ? `rgba(72,207,173,${v / maxVal})`
+                                : `rgba(108,99,255,${v / maxVal})`
+                            )
+                        ),
+                        pointStyle: 'rect', pointRadius: 18
+                    }]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: ctx => `${CLASS_NAMES[ctx.raw.y]} → ${CLASS_NAMES[ctx.raw.x]} : ${ctx.raw.r}` } }
+                    },
+                    scales: {
+                        x: { min: -0.5, max: 9.5, ticks: { callback: v => CLASS_NAMES[v], color: '#555', maxRotation: 45 }, grid: { color: '#1e1e30' } },
+                        y: { min: -0.5, max: 9.5, ticks: { callback: v => CLASS_NAMES[v], color: '#555' }, grid: { color: '#1e1e30' }, reverse: true }
+                    }
+                }
+            });
+            setter(inst);
+        }
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach((b, i) => {
+                b.classList.toggle('active', ['f1','cmknn','cmsvm'][i] === name);
+            });
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const preview = document.getElementById('preview');
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                document.getElementById('uploadIcon').style.display = 'none';
+                document.getElementById('uploadText').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderProbas(containerId, probas, prediction, fillClass) {
+            const container = document.getElementById(containerId);
+            const sorted = Object.entries(probas).sort((a, b) => b[1] - a[1]);
+            container.innerHTML = sorted.map(([cls, pct]) => `
+                <div class="proba-row">
+                    <div class="proba-label">${cls}</div>
+                    <div class="proba-bar-bg">
+                        <div class="proba-bar-fill ${cls === prediction ? 'fill-top' : fillClass}"
+                             style="width: ${pct}%"></div>
+                    </div>
+                    <div class="proba-pct">${pct}%</div>
+                </div>
+            `).join('');
+        }
+
+        async function predict() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const res = await fetch('/predict', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.error) { alert(data.error); return; }
+
+            document.getElementById('compareGrid').style.display = 'grid';
+            document.getElementById('noModelMsg').style.display = 'none';
+
+            // KNN
+            if (data.knn) {
+                document.getElementById('knnPred').textContent = data.knn.prediction;
+                document.getElementById('knnConf').textContent = `Confiance : ${data.knn.confidence}%`;
+                renderProbas('knnProbas', data.knn.all_probas, data.knn.prediction, 'fill-knn');
+            }
+
+            // SVM
+            if (data.svm) {
+                document.getElementById('svmPred').textContent = data.svm.prediction;
+                document.getElementById('svmConf').textContent = `Confiance : ${data.svm.confidence}%`;
+                renderProbas('svmProbas', data.svm.all_probas, data.svm.prediction, 'fill-svm');
+            }
+
+            // Winner
+            document.getElementById('knnResult').classList.remove('winner');
+            document.getElementById('svmResult').classList.remove('winner');
+            if (data.knn && data.svm) {
+                if (data.knn.confidence >= data.svm.confidence) {
+                    document.getElementById('knnResult').classList.add('winner');
+                } else {
+                    document.getElementById('svmResult').classList.add('winner');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
